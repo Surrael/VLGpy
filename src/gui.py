@@ -1,13 +1,14 @@
 import os
 import sys
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QSize
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QLineEdit, QVBoxLayout, QWidget, \
-    QFileDialog, QCheckBox, QComboBox, QMessageBox
+    QFileDialog, QCheckBox, QComboBox, QMessageBox, QHBoxLayout, QSizePolicy, QSpacerItem
 
 import ffmpeg
 import subtitle_generator
 import util
+import pyqtspinner
 
 OPENAI_API_KEY = os.getenv("APIKEY")
 
@@ -140,7 +141,13 @@ class VideoGenerationWindow(QMainWindow):
         self.generate_demo_button = QPushButton("Generate Demo")
         self.generate_demo_button.clicked.connect(self.generate_demo_video)
 
-        self.loading_label = QLabel("")
+        self.loading_spinner = pyqtspinner.WaitingSpinner(self, True, True)
+
+        self.btn_layout = QHBoxLayout()
+
+        self.btn_layout.addWidget(self.generate_button)
+        self.btn_layout.addWidget(self.generate_demo_button)
+
 
         layout = QVBoxLayout()
         layout.addWidget(self.pdf_label)
@@ -150,6 +157,7 @@ class VideoGenerationWindow(QMainWindow):
         layout.addWidget(self.script_entry)
         layout.addWidget(self.script_button)
         layout.addWidget(self.subtitles_checkbox)
+        layout.addWidget(self.loading_spinner)
         layout.addWidget(self.voice_label)
         layout.addWidget(self.voice_combo)
         layout.addWidget(self.video_name_label)
@@ -157,10 +165,7 @@ class VideoGenerationWindow(QMainWindow):
         layout.addWidget(self.video_location_label)
         layout.addWidget(self.video_location_entry)
         layout.addWidget(self.video_location_button)
-        layout.addWidget(self.generate_button)
-        layout.addWidget(self.generate_demo_button)
-        layout.addWidget(self.loading_label)
-
+        layout.addLayout(self.btn_layout)
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
@@ -189,8 +194,9 @@ class VideoGenerationWindow(QMainWindow):
         video_location = self.video_location_entry.text()
 
         if pdf_file and script_file and video_name and video_location:
-            self.loading_label.setText("Generating video...")
+            self.loading_spinner.start()
             self.generate_button.setEnabled(False)
+
 
             # Start video generation thread
             self.video_thread = VideoGenerationThread(pdf_file, script_file, subtitles_enabled, selected_voice,
@@ -201,12 +207,10 @@ class VideoGenerationWindow(QMainWindow):
     def generate_demo_video(self):
         pdf_file = self.pdf_entry.text()
         script_file = self.script_entry.text()
-        # subtitles_enabled = self.subtitles_checkbox.isChecked()
-        # selected_voice = self.voice_combo.currentText()
         video_name = self.video_name_entry.text()
         video_location = self.video_location_entry.text()
         if pdf_file and script_file and video_name and video_location:
-            self.loading_label.setText("Generating video...")
+            self.loading_spinner.start()
             self.generate_button.setEnabled(False)
 
             # Start video generation thread
@@ -215,7 +219,7 @@ class VideoGenerationWindow(QMainWindow):
             self.video_thread.start()
 
     def video_generation_complete(self):
-        self.loading_label.setText("")
+        self.loading_spinner.stop()
         self.generate_button.setEnabled(True)
 
         ### Delete all temp files ###
