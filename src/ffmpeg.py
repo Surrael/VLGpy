@@ -87,7 +87,7 @@ class FFMpeg:
         subprocess.run([
             "ffmpeg",
             "-i", video_path,
-            "-vf", f"subtitles={srt_path}",  # Apply subtitles filter
+            "-vf", f"subtitles='{srt_path}'",  # Apply subtitles filter
             "-c:a", "copy",  # Copy audio stream
             "-c:v", "libx264",  # Video codec
             "-crf", "20",  # Constant Rate Factor (quality)

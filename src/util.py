@@ -5,6 +5,10 @@ import fitz
 import pyttsx3
 from pptx import Presentation
 
+
+
+import ffmpeg
+
 current_dir = os.getcwd()
 base_dir = os.path.dirname(current_dir)
 os.chdir(base_dir)
@@ -59,6 +63,7 @@ def extract_pptx_notes(path: str) -> list:
         notes.append(text)
 
     return notes
+
 
 def text_to_speech(texts: List[str], voice: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"], key: str,
                    path: str = "dir") -> List[str]:

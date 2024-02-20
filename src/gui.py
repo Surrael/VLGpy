@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 from PyQt5.QtCore import QThread, pyqtSignal, QSize
@@ -17,7 +18,8 @@ OPENAI_API_KEY = os.getenv("APIKEY")
 class VideoGenerationThread(QThread):
     video_generated = pyqtSignal()
 
-    def __init__(self, pdf_file, script_file, pptx_file, subtitles_enabled, selected_voice, video_name, video_location):
+    def __init__(self, pdf_file, script_file, pptx_file, subtitles_enabled, selected_voice,
+                 video_name, video_location, srt_location):
         super().__init__()
         self.pdf_file = pdf_file
         self.script_file = script_file
@@ -26,6 +28,7 @@ class VideoGenerationThread(QThread):
         self.selected_voice = selected_voice
         self.video_name = video_name
         self.video_location = video_location
+        self.srt_location = srt_location
 
     def run(self):
         slides = util.pdf_to_images(self.pdf_file)
@@ -39,14 +42,19 @@ class VideoGenerationThread(QThread):
         slide_videos = ffmpeg.FFMpeg.combine_audio_with_image_multi(slides, audios)
         if self.subtitles_enabled:
             ffmpeg.FFMpeg.concatenate_videos(slide_videos, "dir/concat.mp4")
-            audio = ffmpeg.FFMpeg.extract_audio_from_video(f"{self.video_location}/{self.video_name}.mp4")
+            audio = (ffmpeg
+                     .FFMpeg.extract_audio_from_video("dir/concat.mp4"))
             subtitle_gen = subtitle_generator.SubtitleGenerator(OPENAI_API_KEY)
             srt = subtitle_gen.generate_subtitles(audio)
+            if self.srt_location:
+                shutil.copyfile(srt, f"{self.srt_location}/{self.video_name}_subtitles.srt")
+
             ffmpeg.FFMpeg.render_subtitles("dir/concat.mp4",
                                            srt, f"{self.video_location}/{self.video_name}.mp4")
         else:
             ffmpeg.FFMpeg.concatenate_videos(slide_videos, f"{self.video_location}/{self.video_name}.mp4")
 
+        print("Finished video generation, finalising...")
         self.video_generated.emit()
 
 
@@ -158,6 +166,12 @@ class VideoGenerationWindow(QMainWindow):
         self.pptx_button.clicked.connect(self.select_pptx_file)
 
         self.subtitles_checkbox = QCheckBox("Enable Subtitles")
+        self.subtitle_location_label = QLabel("Save .srt file:")
+        self.subtitle_location_entry = QLineEdit()
+        self.subtitle_location_button = QPushButton("")
+        self.subtitle_location_button.setIcon(QIcon('res/browse.png'))
+        self.subtitle_location_button.setFixedSize(QSize(45, 45))
+        self.subtitle_location_button.clicked.connect(self.select_srt_location)
 
         self.voice_label = QLabel("Choose TTS Voice:")
         self.voice_combo = QComboBox()
@@ -204,12 +218,24 @@ class VideoGenerationWindow(QMainWindow):
         self.video_location_layout.addWidget(self.video_location_entry)
         self.video_location_layout.addWidget(self.video_location_button)
 
+        self.subtitle_location_layout = QHBoxLayout()
+        self.subtitle_location_layout.addWidget(self.subtitles_checkbox)
+
+        self.subtitle_location_sublayout = QVBoxLayout()
+        self.subtitle_location_layout.addLayout(self.subtitle_location_sublayout)
+        self.subtitle_location_sublayout.addWidget(self.subtitle_location_label)
+        self.subtitle_location_subsublayout = QHBoxLayout()
+
+        self.subtitle_location_subsublayout.addWidget(self.subtitle_location_entry)
+        self.subtitle_location_subsublayout.addWidget(self.subtitle_location_button)
+        self.subtitle_location_sublayout.addLayout(self.subtitle_location_subsublayout)
+
         layout = QVBoxLayout()
         layout.addLayout(self.script_pptx_labels_layout)
         layout.addLayout(self.script_pptx_layout)
         layout.addWidget(self.pdf_label)
         layout.addLayout(self.pdf_layout)
-        layout.addWidget(self.subtitles_checkbox)
+        layout.addLayout(self.subtitle_location_layout)
         layout.addWidget(self.loading_spinner)
         layout.addWidget(self.voice_label)
         layout.addWidget(self.voice_combo)
@@ -242,10 +268,17 @@ class VideoGenerationWindow(QMainWindow):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Directory", default_location)
         self.video_location_entry.setText(dir_path)
 
+    def select_srt_location(self):
+        default_location = os.path.dirname(os.path.realpath(__file__))
+        dir_path = QFileDialog.getExistingDirectory(self, "Select Directory", default_location)
+        self.subtitle_location_entry.setText(dir_path)
+
     def generate_video(self):
         pdf_file = self.pdf_entry.text()
         script_file = self.script_entry.text()
+        pptx_file = self.pptx_entry.text()
         subtitles_enabled = self.subtitles_checkbox.isChecked()
+        srt_location = self.subtitle_location_entry.text()
         selected_voice = self.voice_combo.currentText()
         video_name = self.video_name_entry.text()
         video_location = self.video_location_entry.text()
@@ -255,8 +288,8 @@ class VideoGenerationWindow(QMainWindow):
             self.generate_button.setEnabled(False)
 
             # Start video generation thread
-            self.video_thread = VideoGenerationThread(pdf_file, script_file, subtitles_enabled, selected_voice,
-                                                      video_name, video_location)
+            self.video_thread = VideoGenerationThread(pdf_file, script_file, pptx_file, subtitles_enabled,
+                                                      selected_voice, video_name, video_location, srt_location)
             self.video_thread.video_generated.connect(self.video_generation_complete)
             self.video_thread.start()
 
@@ -279,6 +312,7 @@ class VideoGenerationWindow(QMainWindow):
         self.loading_spinner.stop()
         self.generate_button.setEnabled(True)
 
+        print("Complete, deleting temp files...")
         ### Delete all temp files ###
         # Get the parent directory path
         parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -286,19 +320,16 @@ class VideoGenerationWindow(QMainWindow):
         # Path to the folder to clear
         folder_to_clear = os.path.join(parent_dir, "dir")
 
-        # Iterate over all files and directories in the folder
-        for file_or_dir in os.listdir(folder_to_clear):
+        # Iterate over all files in the folder
+        """for i, file_or_dir in enumerate(os.listdir(folder_to_clear)):
             # Construct the full path to the file or directory
             file_or_dir_path = os.path.join(folder_to_clear, file_or_dir)
-
+            print(f"File or dir path {i}: {file_or_dir_path}")
             # Check if it's a file
             if os.path.isfile(file_or_dir_path):
                 # Remove the file
-                os.remove(file_or_dir_path)
-            # Check if it's a directory
-            elif os.path.isdir(file_or_dir_path):
-                # Remove the directory and its contents recursively
-                os.rmdir(file_or_dir_path)
+                os.remove(file_or_dir_path)"""
+
 
         # Create a message box
         msg_box = QMessageBox()
