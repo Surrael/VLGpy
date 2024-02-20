@@ -79,8 +79,9 @@ class DemoGenerationThread(QThread):
 class VideoGenerationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Video Generation Tool")
+        self.setWindowTitle("Video Lecture Generator")
         self.setGeometry(100, 100, 600, 400)
+        self.setWindowIcon(QIcon("res/icon.png"))
 
         self.setStyleSheet("""
             QMainWindow {
