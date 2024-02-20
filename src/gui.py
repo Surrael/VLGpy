@@ -2,6 +2,7 @@ import os
 import sys
 
 from PyQt5.QtCore import QThread, pyqtSignal, QSize
+from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QLineEdit, QVBoxLayout, QWidget, \
     QFileDialog, QCheckBox, QComboBox, QMessageBox, QHBoxLayout, QSizePolicy, QSpacerItem
 
@@ -16,10 +17,11 @@ OPENAI_API_KEY = os.getenv("APIKEY")
 class VideoGenerationThread(QThread):
     video_generated = pyqtSignal()
 
-    def __init__(self, pdf_file, script_file, subtitles_enabled, selected_voice, video_name, video_location):
+    def __init__(self, pdf_file, script_file, pptx_file, subtitles_enabled, selected_voice, video_name, video_location):
         super().__init__()
         self.pdf_file = pdf_file
         self.script_file = script_file
+        self.pptx_file = pptx_file
         self.subtitles_enabled = subtitles_enabled
         self.selected_voice = selected_voice
         self.video_name = video_name
@@ -27,7 +29,12 @@ class VideoGenerationThread(QThread):
 
     def run(self):
         slides = util.pdf_to_images(self.pdf_file)
-        script = util.parse_script_file(self.script_file)
+
+        if self.script_file:
+            script = util.parse_script_file(self.script_file)
+        else:
+            script = util.extract_pptx_notes(self.pptx_file)
+
         audios = util.text_to_speech(script, self.selected_voice, OPENAI_API_KEY)
         slide_videos = ffmpeg.FFMpeg.combine_audio_with_image_multi(slides, audios)
         if self.subtitles_enabled:
@@ -46,19 +53,22 @@ class VideoGenerationThread(QThread):
 class DemoGenerationThread(QThread):
     video_generated = pyqtSignal()
 
-    def __init__(self, pdf_file, script_file, video_name, video_location):
+    def __init__(self, pdf_file, script_file, pptx_file, video_name, video_location):
         super().__init__()
         self.pdf_file = pdf_file
         self.script_file = script_file
+        self.pptx_file = pptx_file
         self.video_name = video_name
         self.video_location = video_location
 
     def run(self):
-        print("Converting slides...")
         slides = util.pdf_to_images(self.pdf_file)
-        print("Parsing script file...")
-        script = util.parse_script_file(self.script_file)
-        print("Generating audio...")
+
+        if self.script_file:
+            script = util.parse_script_file(self.script_file)
+        else:
+            script = util.extract_pptx_notes(self.pptx_file)
+
         audios = util.text_to_speech_demo(script)
         slide_videos = ffmpeg.FFMpeg.combine_audio_with_image_multi(slides, audios)
 
@@ -74,52 +84,77 @@ class VideoGenerationWindow(QMainWindow):
 
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #f0f0f0;
+                background-color: #2d2d30;
             }
             QPushButton {
-                background-color: #007bff;
+                background-color: #55945d;
                 color: white;
                 border: none;
                 border-radius: 10px;
                 padding: 15px 30px;
                 font-size: 16px;
+                font-family: Segoe UI;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background-color: #406645;
             }
             QLineEdit {
-                background-color: #ffffff;
-                border: 2px solid #ccc;
+                color: #ffffff;
+                background-color: #252526;
+                border: 2px solid #000000;
                 border-radius: 10px;
                 padding: 10px;
                 font-size: 16px;
+                font-family: Segoe UI;
             }
             QLabel {
+                color: #ffffff;
                 font-size: 18px;
+                font-family: Segoe UI;
                 margin-top: 20px;
             }
             QCheckBox {
+                color: #ffffff;
                 font-size: 18px;
                 margin-top: 20px;
+                font-family: Segoe UI;
             }
             QComboBox {
-                background-color: #ffffff;
-                border: 2px solid #ccc;
+                color: #ffffff;
+                background-color: #252526;
+                border: 2px solid #000000;
                 border-radius: 10px;
                 padding: 10px;
                 font-size: 16px;
+                font-family: Segoe UI;
+            }
+            QComboBox QAbstractItemView {
+                font-family: Segoe UI;
+                color: #ffffff;
+                background-color: #252526;
             }
         """)
 
         self.pdf_label = QLabel("Select PDF file:")
         self.pdf_entry = QLineEdit()
-        self.pdf_button = QPushButton("Browse")
+        self.pdf_button = QPushButton("")
+        self.pdf_button.setIcon(QIcon('res/browse.png'))
+        self.pdf_button.setFixedSize(QSize(45, 45))
         self.pdf_button.clicked.connect(self.select_pdf_file)
 
         self.script_label = QLabel("Select script file:")
         self.script_entry = QLineEdit()
-        self.script_button = QPushButton("Browse")
+        self.script_button = QPushButton("")
+        self.script_button.setIcon(QIcon('res/browse.png'))
+        self.script_button.setFixedSize(QSize(45, 45))
         self.script_button.clicked.connect(self.select_script_file)
+
+        self.pptx_label = QLabel("Select pptx file:")
+        self.pptx_entry = QLineEdit()
+        self.pptx_button = QPushButton("")
+        self.pptx_button.setIcon(QIcon('res/browse.png'))
+        self.pptx_button.setFixedSize(QSize(45, 45))
+        self.pptx_button.clicked.connect(self.select_pptx_file)
 
         self.subtitles_checkbox = QCheckBox("Enable Subtitles")
 
@@ -132,7 +167,9 @@ class VideoGenerationWindow(QMainWindow):
 
         self.video_location_label = QLabel("Video Location:")
         self.video_location_entry = QLineEdit()
-        self.video_location_button = QPushButton("Browse")
+        self.video_location_button = QPushButton("")
+        self.video_location_button.setIcon(QIcon('res/browse.png'))
+        self.video_location_button.setFixedSize(QSize(45, 45))
         self.video_location_button.clicked.connect(self.select_video_location)
 
         self.generate_button = QPushButton("Generate Video")
@@ -148,14 +185,29 @@ class VideoGenerationWindow(QMainWindow):
         self.btn_layout.addWidget(self.generate_button)
         self.btn_layout.addWidget(self.generate_demo_button)
 
+        self.script_pptx_labels_layout = QHBoxLayout()
+        self.script_pptx_labels_layout.addWidget(self.script_label)
+        self.script_pptx_labels_layout.addWidget(self.pptx_label)
+
+        self.script_pptx_layout = QHBoxLayout()
+        self.script_pptx_layout.addWidget(self.script_entry)
+        self.script_pptx_layout.addWidget(self.script_button)
+        self.script_pptx_layout.addWidget(self.pptx_entry)
+        self.script_pptx_layout.addWidget(self.pptx_button)
+
+        self.pdf_layout = QHBoxLayout()
+        self.pdf_layout.addWidget(self.pdf_entry)
+        self.pdf_layout.addWidget(self.pdf_button)
+
+        self.video_location_layout = QHBoxLayout()
+        self.video_location_layout.addWidget(self.video_location_entry)
+        self.video_location_layout.addWidget(self.video_location_button)
 
         layout = QVBoxLayout()
+        layout.addLayout(self.script_pptx_labels_layout)
+        layout.addLayout(self.script_pptx_layout)
         layout.addWidget(self.pdf_label)
-        layout.addWidget(self.pdf_entry)
-        layout.addWidget(self.pdf_button)
-        layout.addWidget(self.script_label)
-        layout.addWidget(self.script_entry)
-        layout.addWidget(self.script_button)
+        layout.addLayout(self.pdf_layout)
         layout.addWidget(self.subtitles_checkbox)
         layout.addWidget(self.loading_spinner)
         layout.addWidget(self.voice_label)
@@ -163,8 +215,7 @@ class VideoGenerationWindow(QMainWindow):
         layout.addWidget(self.video_name_label)
         layout.addWidget(self.video_name_entry)
         layout.addWidget(self.video_location_label)
-        layout.addWidget(self.video_location_entry)
-        layout.addWidget(self.video_location_button)
+        layout.addLayout(self.video_location_layout)
         layout.addLayout(self.btn_layout)
         widget = QWidget()
         widget.setLayout(layout)
@@ -179,6 +230,11 @@ class VideoGenerationWindow(QMainWindow):
     def select_script_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select script file", "", "Text files (*.txt)")
         self.script_entry.setText(file_path)
+
+    def select_pptx_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select PowerPoint file",
+                                                   "", "PowerPoint files (*.pptx *.ppt)")
+        self.pptx_entry.setText(file_path)
 
     def select_video_location(self):
         default_location = os.path.dirname(os.path.realpath(__file__))
@@ -197,7 +253,6 @@ class VideoGenerationWindow(QMainWindow):
             self.loading_spinner.start()
             self.generate_button.setEnabled(False)
 
-
             # Start video generation thread
             self.video_thread = VideoGenerationThread(pdf_file, script_file, subtitles_enabled, selected_voice,
                                                       video_name, video_location)
@@ -207,14 +262,15 @@ class VideoGenerationWindow(QMainWindow):
     def generate_demo_video(self):
         pdf_file = self.pdf_entry.text()
         script_file = self.script_entry.text()
+        pptx_file = self.pptx_entry.text()
         video_name = self.video_name_entry.text()
         video_location = self.video_location_entry.text()
-        if pdf_file and script_file and video_name and video_location:
+        if pdf_file and (script_file or pptx_file) and video_name and video_location:
             self.loading_spinner.start()
             self.generate_button.setEnabled(False)
 
             # Start video generation thread
-            self.video_thread = DemoGenerationThread(pdf_file, script_file, video_name, video_location)
+            self.video_thread = DemoGenerationThread(pdf_file, script_file, pptx_file, video_name, video_location)
             self.video_thread.video_generated.connect(self.video_generation_complete)
             self.video_thread.start()
 

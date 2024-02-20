@@ -3,6 +3,7 @@ from openai import OpenAI
 import os
 import fitz
 import pyttsx3
+from pptx import Presentation
 
 current_dir = os.getcwd()
 base_dir = os.path.dirname(current_dir)
@@ -47,6 +48,17 @@ def pdf_to_images(pdf_path: str, output_folder: str = "dir") -> list:
 
     return image_paths
 
+
+def extract_pptx_notes(path: str) -> list:
+    ppt = Presentation(path)
+
+    notes = []
+
+    for page, slide in enumerate(ppt.slides):
+        text = slide.notes_slide.notes_text_frame.text
+        notes.append(text)
+
+    return notes
 
 def text_to_speech(texts: List[str], voice: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"], key: str,
                    path: str = "dir") -> List[str]:
@@ -115,6 +127,3 @@ def parse_script_file(script_path: str) -> list:
         # Append the last slide text
         slides.append(current_slide_text.strip())
     return slides
-
-
-
