@@ -2,6 +2,7 @@ from typing import Literal, List
 from openai import OpenAI
 import os
 import fitz
+import pyttsx3
 
 current_dir = os.getcwd()
 base_dir = os.path.dirname(current_dir)
@@ -74,6 +75,20 @@ def text_to_speech(texts: List[str], voice: Literal["alloy", "echo", "fable", "o
         response.write_to_file(mp3_path)
         mp3_paths.append(mp3_path)
 
+    return mp3_paths
+
+
+def text_to_speech_demo(texts: List[str], path: str = "dir") -> List[str]:
+    engine = pyttsx3.init()
+    mp3_paths = []
+
+    for i, text in enumerate(texts):
+        mp3_path = f"{path}/audio_{i}.mp3"
+        engine.save_to_file(text, mp3_path)
+        engine.runAndWait()
+        mp3_paths.append(mp3_path)
+
+    engine.stop()
     return mp3_paths
 
 

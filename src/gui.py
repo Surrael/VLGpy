@@ -42,6 +42,29 @@ class VideoGenerationThread(QThread):
         self.video_generated.emit()
 
 
+class DemoGenerationThread(QThread):
+    video_generated = pyqtSignal()
+
+    def __init__(self, pdf_file, script_file, video_name, video_location):
+        super().__init__()
+        self.pdf_file = pdf_file
+        self.script_file = script_file
+        self.video_name = video_name
+        self.video_location = video_location
+
+    def run(self):
+        print("Converting slides...")
+        slides = util.pdf_to_images(self.pdf_file)
+        print("Parsing script file...")
+        script = util.parse_script_file(self.script_file)
+        print("Generating audio...")
+        audios = util.text_to_speech_demo(script)
+        slide_videos = ffmpeg.FFMpeg.combine_audio_with_image_multi(slides, audios)
+
+        ffmpeg.FFMpeg.concatenate_videos(slide_videos, f"{self.video_location}/{self.video_name}.mp4")
+        self.video_generated.emit()
+
+
 class VideoGenerationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -114,6 +137,9 @@ class VideoGenerationWindow(QMainWindow):
         self.generate_button = QPushButton("Generate Video")
         self.generate_button.clicked.connect(self.generate_video)
 
+        self.generate_demo_button = QPushButton("Generate Demo")
+        self.generate_demo_button.clicked.connect(self.generate_demo_video)
+
         self.loading_label = QLabel("")
 
         layout = QVBoxLayout()
@@ -132,6 +158,7 @@ class VideoGenerationWindow(QMainWindow):
         layout.addWidget(self.video_location_entry)
         layout.addWidget(self.video_location_button)
         layout.addWidget(self.generate_button)
+        layout.addWidget(self.generate_demo_button)
         layout.addWidget(self.loading_label)
 
         widget = QWidget()
@@ -168,6 +195,22 @@ class VideoGenerationWindow(QMainWindow):
             # Start video generation thread
             self.video_thread = VideoGenerationThread(pdf_file, script_file, subtitles_enabled, selected_voice,
                                                       video_name, video_location)
+            self.video_thread.video_generated.connect(self.video_generation_complete)
+            self.video_thread.start()
+
+    def generate_demo_video(self):
+        pdf_file = self.pdf_entry.text()
+        script_file = self.script_entry.text()
+        # subtitles_enabled = self.subtitles_checkbox.isChecked()
+        # selected_voice = self.voice_combo.currentText()
+        video_name = self.video_name_entry.text()
+        video_location = self.video_location_entry.text()
+        if pdf_file and script_file and video_name and video_location:
+            self.loading_label.setText("Generating video...")
+            self.generate_button.setEnabled(False)
+
+            # Start video generation thread
+            self.video_thread = DemoGenerationThread(pdf_file, script_file, video_name, video_location)
             self.video_thread.video_generated.connect(self.video_generation_complete)
             self.video_thread.start()
 
