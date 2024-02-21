@@ -1,6 +1,7 @@
 import subprocess
 import os
 from typing import List
+from threading import Thread
 
 
 class FFMpeg:
@@ -38,15 +39,22 @@ class FFMpeg:
             slides (List[str]): List of paths to slide images.
             audios (List[str]): List of paths to audio files.
             output_folder (str): Folder where the output videos will be saved.
-
         Returns:
             List[str]: List of paths to the generated videos.
         """
         video_paths = []
+        threads = []
+
         for i, (slide, audio) in enumerate(zip(slides, audios)):
             output_path = f"{output_folder}/video_{i}.mp4"
-            FFMpeg.combine_audio_with_image(slide, audio, output_path)
+            thread = Thread(target=FFMpeg.combine_audio_with_image, args=[slide, audio, output_path])
+            threads.append(thread)
             video_paths.append(output_path)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
         return video_paths
 
     @staticmethod

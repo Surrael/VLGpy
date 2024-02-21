@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+from time import sleep
 
 from PyQt5.QtCore import QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QIcon, QFont
@@ -312,11 +313,9 @@ class VideoGenerationWindow(QMainWindow):
         self.loading_spinner.stop()
         self.generate_button.setEnabled(True)
 
-        print("Complete, deleting temp files...")
-        # Get the parent directory path
         parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        shutil.rmtree(f"{parent_dir}/dir")  # causes crashes when subtitle generation is enabled for some reason TODO
+        shutil.rmtree(f"{parent_dir}/dir")
         os.mkdir(f"{parent_dir}/dir")
 
         # Create a message box

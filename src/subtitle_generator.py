@@ -57,6 +57,7 @@ class SubtitleGenerator:
             response_format="verbose_json",
             timestamp_granularities=["segment"]
         )
+        audio_file.close()
         return transcript.model_dump_json()
 
 
