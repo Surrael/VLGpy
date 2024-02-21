@@ -313,23 +313,11 @@ class VideoGenerationWindow(QMainWindow):
         self.generate_button.setEnabled(True)
 
         print("Complete, deleting temp files...")
-        ### Delete all temp files ###
         # Get the parent directory path
         parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        # Path to the folder to clear
-        folder_to_clear = os.path.join(parent_dir, "dir")
-
-        # Iterate over all files in the folder
-        """for i, file_or_dir in enumerate(os.listdir(folder_to_clear)):
-            # Construct the full path to the file or directory
-            file_or_dir_path = os.path.join(folder_to_clear, file_or_dir)
-            print(f"File or dir path {i}: {file_or_dir_path}")
-            # Check if it's a file
-            if os.path.isfile(file_or_dir_path):
-                # Remove the file
-                os.remove(file_or_dir_path)"""
-
+        shutil.rmtree(f"{parent_dir}/dir")  # causes crashes when subtitle generation is enabled for some reason TODO
+        os.mkdir(f"{parent_dir}/dir")
 
         # Create a message box
         msg_box = QMessageBox()
