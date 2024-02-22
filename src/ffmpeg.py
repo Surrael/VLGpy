@@ -1,7 +1,8 @@
+import concurrent
 import subprocess
 import os
 from typing import List
-from threading import Thread
+import concurrent.futures
 
 
 class FFMpeg:
@@ -42,18 +43,13 @@ class FFMpeg:
         Returns:
             List[str]: List of paths to the generated videos.
         """
-        video_paths = []
-        threads = []
 
-        for i, (slide, audio) in enumerate(zip(slides, audios)):
-            output_path = f"{output_folder}/video_{i}.mp4"
-            thread = Thread(target=FFMpeg.combine_audio_with_image, args=[slide, audio, output_path])
-            threads.append(thread)
-            video_paths.append(output_path)
-            thread.start()
-
-        for thread in threads:
-            thread.join()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            video_paths = []
+            for i, (slide, audio) in enumerate(zip(slides, audios)):
+                output_path = os.path.join(output_folder, f"video_{i}.mp4")
+                executor.submit(FFMpeg.combine_audio_with_image, slide, audio, output_path)
+                video_paths.append(output_path)
 
         return video_paths
 
