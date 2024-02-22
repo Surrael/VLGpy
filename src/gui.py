@@ -354,8 +354,8 @@ class VideoGenerationWindow(QMainWindow):
 
         parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        # shutil.rmtree(f"{parent_dir}/dir") bugged, causes crashes
-        # os.mkdir(f"{parent_dir}/dir")
+        shutil.rmtree(f"{parent_dir}/dir")
+        os.mkdir(f"{parent_dir}/dir")
 
         # Create a message box
         msg_box = QMessageBox()
