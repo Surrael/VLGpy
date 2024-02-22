@@ -4,9 +4,9 @@ import sys
 from time import sleep
 
 from PyQt5.QtCore import QThread, pyqtSignal, QSize
-from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QLineEdit, QVBoxLayout, QWidget, \
-    QFileDialog, QCheckBox, QComboBox, QMessageBox, QHBoxLayout, QSizePolicy, QSpacerItem
+    QFileDialog, QCheckBox, QComboBox, QMessageBox, QHBoxLayout
 
 import ffmpeg
 import subtitle_generator
@@ -83,6 +83,27 @@ class DemoGenerationThread(QThread):
 
         ffmpeg.FFMpeg.concatenate_videos(slide_videos, f"{self.video_location}/{self.video_name}.mp4")
         self.video_generated.emit()
+
+
+class AudioGenerationThread(QThread):
+    audio_generated = pyqtSignal()
+
+    def __init__(self, script_file, pptx_file, video_name, video_location):
+        super().__init__()
+        self.script_file = script_file
+        self.pptx_file = pptx_file
+        self.video_name = video_name
+        self.video_location = video_location
+
+    def run(self):
+        if self.script_file:
+            script = util.parse_script_file(self.script_file)
+        else:
+            script = util.extract_pptx_notes(self.pptx_file)
+
+        audios = util.text_to_speech_demo(script)
+        ffmpeg.FFMpeg.concatenate_audios(audios, f"{self.video_location}/{self.video_name}.mp3")
+        self.audio_generated.emit()
 
 
 class VideoGenerationWindow(QMainWindow):
@@ -231,6 +252,9 @@ class VideoGenerationWindow(QMainWindow):
         self.subtitle_location_subsublayout.addWidget(self.subtitle_location_button)
         self.subtitle_location_sublayout.addLayout(self.subtitle_location_subsublayout)
 
+        self.audio_only_button = QPushButton("Generate Audio")
+        self.audio_only_button.clicked.connect(self.generate_audio)
+
         layout = QVBoxLayout()
         layout.addLayout(self.script_pptx_labels_layout)
         layout.addLayout(self.script_pptx_layout)
@@ -245,11 +269,12 @@ class VideoGenerationWindow(QMainWindow):
         layout.addWidget(self.video_location_label)
         layout.addLayout(self.video_location_layout)
         layout.addLayout(self.btn_layout)
+        layout.addWidget(self.audio_only_button)
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
 
-        self.video_thread = None
+        self.thread = None
 
     def select_pdf_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select PDF file", "", "PDF files (*.pdf)")
@@ -289,10 +314,10 @@ class VideoGenerationWindow(QMainWindow):
             self.generate_button.setEnabled(False)
 
             # Start video generation thread
-            self.video_thread = VideoGenerationThread(pdf_file, script_file, pptx_file, subtitles_enabled,
-                                                      selected_voice, video_name, video_location, srt_location)
-            self.video_thread.video_generated.connect(self.video_generation_complete)
-            self.video_thread.start()
+            self.thread = VideoGenerationThread(pdf_file, script_file, pptx_file, subtitles_enabled,
+                                                selected_voice, video_name, video_location, srt_location)
+            self.thread.video_generated.connect(self.video_generation_complete)
+            self.thread.start()
 
     def generate_demo_video(self):
         pdf_file = self.pdf_entry.text()
@@ -305,18 +330,32 @@ class VideoGenerationWindow(QMainWindow):
             self.generate_button.setEnabled(False)
 
             # Start video generation thread
-            self.video_thread = DemoGenerationThread(pdf_file, script_file, pptx_file, video_name, video_location)
-            self.video_thread.video_generated.connect(self.video_generation_complete)
-            self.video_thread.start()
+            self.thread = DemoGenerationThread(pdf_file, script_file, pptx_file, video_name, video_location)
+            self.thread.video_generated.connect(self.video_generation_complete)
+            self.thread.start()
+
+    def generate_audio(self):
+        script_file = self.script_entry.text()
+        pptx_file = self.pptx_entry.text()
+        video_name = self.video_name_entry.text()
+        video_location = self.video_location_entry.text()
+
+        if (script_file or pptx_file) and video_name and video_location:
+            self.loading_spinner.start()
+            self.generate_button.setEnabled(False)
+
+            # Start video generation thread
+            self.thread = AudioGenerationThread(script_file, pptx_file, video_name, video_location)
+            self.thread.audio_generated.connect(self.video_generation_complete)
+            self.thread.start()
 
     def video_generation_complete(self):
         self.loading_spinner.stop()
-        self.generate_button.setEnabled(True)
 
         parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        shutil.rmtree(f"{parent_dir}/dir")
-        os.mkdir(f"{parent_dir}/dir")
+        # shutil.rmtree(f"{parent_dir}/dir") bugged, causes crashes
+        # os.mkdir(f"{parent_dir}/dir")
 
         # Create a message box
         msg_box = QMessageBox()

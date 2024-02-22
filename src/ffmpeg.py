@@ -75,6 +75,27 @@ class FFMpeg:
         os.remove('input_files.txt')
 
     @staticmethod
+    def concatenate_audios(input_files, output_path):
+        # Write a temporary file listing input files
+        with open('input_files.txt', 'w') as f:
+            for file in input_files:
+                f.write(f"file '{file}'\n")
+
+        # Run ffmpeg to concatenate videos
+        subprocess.run([
+            "ffmpeg",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "input_files.txt",
+            "-c:a", "mp3",
+            output_path
+        ])
+
+        # Delete the temporary file
+        os.remove('input_files.txt')
+
+    @staticmethod
     def extract_audio_from_video(video_path: str, output_path="dir/audio.mp3"):
         subprocess.run([
             "ffmpeg",
